@@ -1,8 +1,8 @@
 name: TimeShift
 main: tazzernator.cjc.timeshift.TimeShift
-version: 3.0
+version: 4.0
 website: http://forums.bukkit.org/posts/14655/
-author: Tazzernator and cjc (TimeShift), and feverdream (open source time logic)
+author: Tazzernator and cjc (TimeShift), and feverdream (open source time logic), helluvamatt (upgrade to latest Bukkit APIs, remove deprecated stuff)
 database: true
 description: >
              Allows the time to be looped on demand, or at startup, for each world.

@@ -14,47 +14,36 @@ import tazzernator.cjc.timeshift.settings.LoopSetting;
 
 class TimeShiftConfiguration {
 	private TimeShift plugin;
-	static FileConfiguration config;
-	ConfigurationSection configuration;
-	String ver = "config-version";
-	String dt = "detect-time";
-	String pr = "poll-rate";
+	private static FileConfiguration config;
+	private ConfigurationSection configuration;
 
-	protected TimeShiftConfiguration(TimeShift instance) {
+	TimeShiftConfiguration(TimeShift instance) {
 		plugin = instance;
 		config = plugin.getConfig();
 		configuration = config.getConfigurationSection("configuration");
 		if (config.getConfigurationSection("commands").getKeys(false).size() == 0) {
-			File configFile = new File(TimeShift.path, "/config.yml");
-			File oldConfig = new File(TimeShift.path, "/config.yml.old");
+			File configFile = new File(plugin.getDataFolder(), "config.yml");
+			File oldConfig = new File(plugin.getDataFolder(), "config.yml.old");
 			int i = 0;
 			while (oldConfig.exists()) {
-				oldConfig = new File(TimeShift.path, "/config.yml.old." + i++);// 0 and up
+				oldConfig = new File(plugin.getDataFolder(), "config.yml.old." + i++);// 0 and up
 			}
 			configFile.renameTo(oldConfig);
-			plugin.l.warning("[TimeShift] Your config.yml has been saved as config.yml.old to preserve any comments.");
-			plugin.l.warning("[TimeShift] Your config.yml is being updated to the a new version.");
-			plugin.l.warning("[TimeShift] It is recommended that you delete the config, allow the default to be generated, and then re-apply your customizations.");
-			plugin.l.warning("[TimeShift] Doing so will keep helpful comments inside the config.");
+			plugin.getLogger().warning("Your config.yml has been saved as config.yml.old to preserve any comments.");
+			plugin.getLogger().warning("Your config.yml is being updated to the a new version.");
+			plugin.getLogger().warning("It is recommended that you delete the config, allow the default to be generated, and then re-apply your customizations.");
+			plugin.getLogger().warning("Doing so will keep helpful comments inside the config.");
 			config.options().copyDefaults(true);
 			plugin.saveConfig();
 		}
 	}
 
-	protected Boolean detectTime() {
+	Boolean detectTime() {
 		return configuration.getBoolean("detect-time");
 	}
 
-	protected int getRate() {
-		return configuration.getInt("classic." + pr);
-	}
-
-	public boolean classicTime() {
-		return configuration.getBoolean("classic.on");
-	}
-
 	private void cmdErr(String s, String key) {// Generic error that causes a command to not be parsed.
-		plugin.l.warning("[" + TimeShift.name + "] The shift command '" + key + "' was skipped because " + s);
+		plugin.getLogger().warning("The shift command '" + key + "' was skipped because " + s);
 	}
 
 	private String getString(String path, ConfigurationSection config) {
@@ -65,7 +54,7 @@ class TimeShiftConfiguration {
 		}
 	}
 
-	protected boolean readLoops() {// Read in commands and register them
+	void readLoops() {// Read in commands and register them
 		ConfigurationSection commands = config.getConfigurationSection("commands");
 		Set<String> keys = commands.getKeys(false);
 		if (keys.size() == 0) {
@@ -74,18 +63,25 @@ class TimeShiftConfiguration {
 		for (String key : keys) {// for each command defined
 			String keyType = getString(key + ".type", commands);// type defines what it does
 
-			if (keyType.equals("loop")) {// common type
-				parseLoop(commands, key);// parse the loop command and register the loop type
-			} else if (keyType.equals("startup")) {// startup setting identifier(s)
-				readAliases(commands.getConfigurationSection(key), key, "TS STARTUP");// input commands with special value
-			} else if (keyType.equals("stop")) {// cancel loop command
-				readAliases(commands.getConfigurationSection(key), key, "TS STOP");
-			} else {// fallback is loop with message.
-				plugin.l.info("[TimeShift] The command '" + key + "' has an incorrect or missing type and is assumed to be a loop.");
-				parseLoop(commands, key);
+			switch (keyType) {
+				case "loop":
+					parseLoop(commands, key);
+					break;
+				case "startup":
+					readAliases(commands.getConfigurationSection(key), key, "TS STARTUP");
+					break;
+				case "stop":
+					readAliases(commands.getConfigurationSection(key), key, "TS STOP");
+					break;
+				default:
+					plugin.getLogger().info("The command '" + key + "' has an incorrect or missing type and is assumed to be a loop.");
+					parseLoop(commands, key);
 			}
 		}
-		return false;
+	}
+
+	TimeShiftMessaging createMessaging() {
+		return new TimeShiftMessaging();
 	}
 
 	private void parseLoop(ConfigurationSection commands, String key) {// parses a command
@@ -112,7 +108,7 @@ class TimeShiftConfiguration {
 				settings[z][1] = y;// save the pair
 			}
 			// save settings
-			TimeShift.loop_settings.put(key, new LoopSetting(key, settings));
+			plugin.getLoopSettings().put(key, new LoopSetting(key, settings));
 			// register commands
 			readAliases(command, key);
 		} else {
@@ -123,39 +119,39 @@ class TimeShiftConfiguration {
 
 	private void checkAlias(String command, String alias, String newCommand) {
 		if (command != null) {
-			plugin.l.warning("[TimeShift] The alias '" + alias + "' to the command '" + command + "' is being changed to the command '" + newCommand + "' because '" + alias + "' was found multiple times.");
+			plugin.getLogger().warning("The alias '" + alias + "' to the command '" + command + "' is being changed to the command '" + newCommand + "' because '" + alias + "' was found multiple times.");
 		}
 	}
 
 	private void readAliases(ConfigurationSection command, String cmdName) {// registers commands and their aliases to a command name
-		checkAlias(TimeShift.command_aliases.put(cmdName.toLowerCase(), cmdName), cmdName, cmdName);// register command
+		checkAlias(plugin.getCommandAliases().put(cmdName.toLowerCase(), cmdName), cmdName, cmdName);// register command
 		if (command.contains("aliases")) {
 			List<String> aliases = command.getStringList("aliases");// get the list of aliases
 			for (String e : aliases) {// register aliases
-				checkAlias(TimeShift.command_aliases.put(e.toLowerCase(), cmdName), e, cmdName);
+				checkAlias(plugin.getCommandAliases().put(e.toLowerCase(), cmdName), e, cmdName);
 			}
 		} else {
-			plugin.l.info("[TimeShift] The aliases section was ignored or not present for the '" + cmdName + "' command.");
+			plugin.getLogger().info("The aliases section was ignored or not present for the '" + cmdName + "' command.");
 		}
 	}
 
 	private void readAliases(ConfigurationSection command, String key, String cmdName) {// registers commands and their aliases to a command name
-		checkAlias(TimeShift.command_aliases.put(key.toLowerCase(), cmdName), cmdName, key);// register command
-		if (command.contains("aliases") && cmdName != "TS ERR") {
+		checkAlias(plugin.getCommandAliases().put(key.toLowerCase(), cmdName), cmdName, key);// register command
+		if (command.contains("aliases") && !"TS ERR".equals(cmdName)) {
 			List<String> aliases = command.getStringList("aliases");// get the list of aliases
 			for (String e : aliases) {// register aliases
-				checkAlias(TimeShift.command_aliases.put(e.toLowerCase(), cmdName), e, key);
+				checkAlias(plugin.getCommandAliases().put(e.toLowerCase(), cmdName), e, key);
 			}
-		} else if (cmdName != "TS ERR") {
-			plugin.l.info("[TimeShift] The aliases section was ignored or not present for the '" + key + "' command.");
+		} else if (!"TS ERR".equals(cmdName)) {
+			plugin.getLogger().info("The aliases section was ignored or not present for the '" + key + "' command.");
 		}
 	}
 
-	protected boolean colorizeStrings() {
+	private boolean colorizeStrings() {
 		return configuration.getBoolean("colorize-strings");
 	}
 
-	protected class TimeShiftMessaging {
+	class TimeShiftMessaging {
 		ConfigurationSection strings = config.getConfigurationSection("strings");
 		ConfigurationSection help = strings.getConfigurationSection("help");
 		ConfigurationSection errors = strings.getConfigurationSection("errors");
@@ -164,19 +160,18 @@ class TimeShiftConfiguration {
 		String ca = "cancel.";
 		String st = "startup.";
 
-		String str = "string";
 		String dest = "destination";
 		boolean colorize;
 		
-		protected TimeShiftMessaging() {
+		TimeShiftMessaging() {
 			colorize = colorizeStrings();
 		}
 
 		// called to send messages to anyone.
 		// sends messages concerning changes to current 'shift' state
-		protected void sendMessage(CommandSender cs, String worldName, String setting, boolean startup) {
+		void sendMessage(CommandSender cs, String worldName, String setting, boolean startup) {
 			if (!startup) { // if not a startup message
-				if (setting == "") {// a non-startup cancel message
+				if ("".equals(setting)) {// a non-startup cancel message
 					String d = strings.getString(ca + dest); // get the cancel message
 					send(d, getCancelString(cs, worldName), cs, worldName); // send the message with variables parsed
 				} else {// a non-startup shift message
@@ -184,7 +179,7 @@ class TimeShiftConfiguration {
 					send(d, getShiftString(cs, worldName, setting), cs, worldName); // send the cancel message with variables parsed
 				}
 			} else { // a startup message
-				if (setting == "") {// a startup cancel
+				if ("".equals(setting)) {// a startup cancel
 					String d = strings.getString(st + ca + dest);
 					send(d, getStartupCancelString(cs, worldName), cs, worldName);
 				} else {// a startup shift
@@ -196,7 +191,7 @@ class TimeShiftConfiguration {
 
 		// called to send errors to anyone
 		// error chosen based on int value. (future: enum?)
-		protected void sendError(CommandSender cs, ErrorType type, String worldName) {
+		void sendError(CommandSender cs, ErrorType type, String worldName) {
 			boolean log = errors.getBoolean("error-logging"); // get logging status. only needs to be done once. move out of sendError.
 			String msg = "";
 			if (type == ErrorType.WORLD_DNE) { // world doesn't exist
@@ -216,14 +211,14 @@ class TimeShiftConfiguration {
 			cs.sendMessage(msg); // send error to user of command
 			if (log) {// log error to console if logging is on.
 				if (cs instanceof Player) {
-					plugin.l.info(((Player) cs).getName() + " receieved this error: " + msg + " from " + TimeShift.name);
+					plugin.getLogger().info(cs.getName() + " receieved this error: " + msg + " from " + plugin.getName());
 				}
 			}
 		}
 
 		// called to send help to anyone
 		// help type chosen based on int value (future: enum?)
-		protected void sendHelp(CommandSender cs, HelpType type) {
+		void sendHelp(CommandSender cs, HelpType type) {
 			if (type == HelpType.FULL) { // full help
 				cs.sendMessage(help.getString("shift-startup"));
 			} else if (type == HelpType.CONSOLE) { // console help
@@ -237,20 +232,24 @@ class TimeShiftConfiguration {
 
 		// called by sendMessage to send to proper destination
 		private void send(String d, String msg, CommandSender cs, String worldName) {
-			if (msg == "") {
+			if ("".equals(msg)) {
 				return;
 			}
 			// check who to broadcast message to: player, server, or world
-			if (d.equals("player")) {
-				cs.sendMessage(msg);// send to sender (could also be console)
-				plugin.l.info(msg);//log to console
-			} else if (d.equals("server-announce")) {
-				plugin.getServer().broadcastMessage(msg);// send to server (all worlds + console)
-			} else if (d.equals("world-announce")) {
-				for (Player p : plugin.getServer().getWorld(worldName).getPlayers()) {// send to all players in effected world
-					p.sendMessage(msg);
-				}
-				plugin.l.info(msg);//log to console
+			switch (d) {
+				case "player":
+					cs.sendMessage(msg);// send to sender (could also be console)
+					plugin.getLogger().info(msg);//log to console
+					break;
+				case "server-announce":
+					plugin.getServer().broadcastMessage(msg);// send to server (all worlds + console)
+					break;
+				case "world-announce":
+					for (Player p : plugin.getServer().getWorld(worldName).getPlayers()) {// send to all players in effected world
+						p.sendMessage(msg);
+					}
+					plugin.getLogger().info(msg);
+					break;
 			}
 		}
 
@@ -285,11 +284,7 @@ class TimeShiftConfiguration {
 		private String parseVars(String s, CommandSender p, String worldName, String setting) {
 			s = s.replaceAll("%world", worldName);// replace with world name or attempted world name
 			s = s.replaceAll("%setting", setting);// replace with valid, non-'stop' setting
-			if (p instanceof Player) {// replace with playername or console
-				s = s.replaceAll("%player", ((Player) p).getName());
-			} else {
-				s = s.replaceAll("%player", "The Console");
-			}
+			s = s.replaceAll("%player", p.getName());
 			return colorize(s);
 		}
 

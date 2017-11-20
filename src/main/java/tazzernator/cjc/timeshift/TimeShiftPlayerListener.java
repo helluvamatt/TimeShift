@@ -12,7 +12,7 @@ import tazzernator.cjc.timeshift.settings.WorldSetting;
 public class TimeShiftPlayerListener implements Listener {
 	private TimeShift plugin;
 
-	public TimeShiftPlayerListener(TimeShift instance) {
+	TimeShiftPlayerListener(TimeShift instance) {
 		this.plugin = instance;
 	}
 
@@ -22,6 +22,7 @@ public class TimeShiftPlayerListener implements Listener {
 	// it isn't possible to check every plugin's implementation of the time command since it is quite common
 	// and varies in usage. Shifts must be canceled for the time command to be effective in another plugin.
 	@EventHandler(priority = EventPriority.LOW)
+	@SuppressWarnings("unused")
 	public void onPlayerCommandPreprocess(PlayerCommandPreprocessEvent event) {
 		if (event.getMessage().startsWith("/time ")) {// does not catch just /time, catches /time [arg]
 			if (event.getMessage().startsWith("help", 6)) {
@@ -37,14 +38,13 @@ public class TimeShiftPlayerListener implements Listener {
 			World w = player.getWorld();
 
 			// TST should fix before it is ever an issue?
-			WorldSetting setting = TimeShift.world_settings.get(w.getName());
+			WorldSetting setting = plugin.getWorldSettings().get(w.getName());
 			if (setting != null && setting.getTid() != -1) { // check if a 'shift' is active
 				plugin.cancelShift(setting);
 				String wname = player.getWorld().getName();
-				TimeShift.world_settings.put(wname, setting);
-				plugin.tsm.sendMessage(player, wname, "", false);// print result
+				plugin.getWorldSettings().put(wname, setting);
+				plugin.getMessaging().sendMessage(player, wname, "", false);// print result
 			}
-			return;
 		}
 	}
 }
